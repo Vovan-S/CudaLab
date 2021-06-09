@@ -105,14 +105,11 @@ sync1: __asm nop
 sync2: __asm nop
 
         if (tid == 0) {
-            printf("C = (%f, %f), r = %f", p_current->x, p_current->y, p_current->r);
             if (control->has_error) {
                 control->n_errors++;
-                printf(" -- error\n");
             } else {
                 control->n_generated++;
                 control->n_errors = 0;
-                printf(" -- successful\n");
             }
         }
         current_part = 3; return 1;

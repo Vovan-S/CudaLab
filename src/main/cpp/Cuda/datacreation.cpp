@@ -24,7 +24,6 @@ __device__ int drawFigure(PlanePart* plane, Circle* circle, size_t* rand_seed) {
         len_t y = a;
         for (int i = 0; i < 5; i++) y = (y + a / y) / 2;
         if (randBool(rand_seed)) y = -y;
-        
         for (int i = 0; i < 3; i++) {
             len_t x1 = -0.5 * x + 0.866025 * y;
             len_t y1 = 0.866025 * x - 0.5 * y;
@@ -152,14 +151,11 @@ __global__ int create_data_gpu(PlanePart* plane,
         }
         __syncthreads();
         if (tid == 0) {
-            printf("C = (%f, %f), r = %f", p_current->x, p_current->y, p_current->r);
             if (control->has_error) {
                 control->n_errors++;
-                printf(" -- error\n");
             } else {
                 control->n_generated++;
                 control->n_errors = 0;
-                printf(" -- successful\n");
             }
         }
         __syncthreads();
@@ -197,8 +193,19 @@ err_t create_data(PlanePart* plane, FigureCount desired, FigureCount* actual) {
     CreationControlStruct* ccs;
     cudaMalloc((void **)&ccs, sizeof(ccs));
     cudaMemset(ccs, 0, sizeof(ccs));
-    create_data_gpu<<<1, MIN(M, THREADS_CREATION)>>>(plane, dev_css, ccs, actual);
+    
+    FigureCount* fc; 
+    cudaMalloc((void **)&fc, sizeof(FigureCount));
+    cudaMemcpy(fc, actual, sizeof(FigureCount), cudaMemcpyHostToDevice);
+    
+    create_data_gpu<<<1, MIN(M, THREADS_CREATION)>>>(plane, dev_css, ccs, fc);
+    
+    cudaMemcpy(actual, fc, sizeof(FigureCount), cudaMemcpyDeviceToHost);
+    
+    cudaFree(fc);
     cudaFree(dev_css);
     cudaFree(circles);
+    cudaFree(ccs);
+    
     return 0;
 }

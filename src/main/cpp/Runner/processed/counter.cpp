@@ -1,7 +1,42 @@
 #include "counter.h"
 
 #include "_all_classes.h"
-err_t count_figures(PlanePart* plane, FigureCount* result, CudaConfig cfg) {
+err_t count_figures(PlanePart* plane, FigureCount* result, CudaConfig cuda_cfg) {
+    size_t N = cuda_cfg.nBlocks * cuda_cfg.nThreads;
+    
+    CountStruct* dev_count;
+    CountStruct hst_count;
+    
+    cudaMalloc((void **)&(hst_count.triag), N * sizeof(size_t));
+    cudaMalloc((void **)&(hst_count.circle), N * sizeof(size_t));
+    cudaMalloc((void **)&dev_count, sizeof(CountStruct));
+    
+    cudaMemcpy(dev_count, &hst_count, sizeof(CountStruct), cudaMemcpyHostToDevice);
+    
+    CountAlgConfig cfg; 
+    for (int i = sizeof(size_t) * 8 - 1; i >= 0; i--) {
+        if (N & (1 << i)) {
+            cfg.k = i - 5;
+            cfg.len = N / (1 << cfg.k);
+            break;
+        }
+    }
+    
+    Runner::run(cuda_cfg.nBlocks, cuda_cfg.nThreads, &global__count_figures_gpu(plane, dev_count, cfg));
+    
+    FigureCount* dev_fc;
+    
+    cudaMalloc((void **)&dev_fc, sizeof(FigureCount));
+   
+    Runner::run(1, cuda_cfg.nThreads, &global__reduction(dev_count, dev_fc, N));
+   
+    cudaMemcpy(result, dev_count, sizeof(FigureCount), cudaMemcpyDeviceToHost);
+   
+    cudaFree(dev_fc);
+    cudaFree(hst_count.circle);
+    cudaFree(hst_count.triag);
+    cudaFree(dev_count);
+    
     return 0;
 }
 
@@ -107,6 +142,8 @@ err_t count_figures(PlanePart* plane, FigureCount* result, CudaConfig cfg) {
     if (dx > 0) return 0; 
     return 1;
 }
+
+
 
 
 

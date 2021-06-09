@@ -25,7 +25,6 @@
         len_t y = a;
         for (int i = 0; i < 5; i++) y = (y + a / y) / 2;
         if (randBool(rand_seed)) y = -y;
-        
         for (int i = 0; i < 3; i++) {
             len_t x1 = -0.5 * x + 0.866025 * y;
             len_t y1 = 0.866025 * x - 0.5 * y;
@@ -125,8 +124,19 @@ err_t create_data(PlanePart* plane, FigureCount desired, FigureCount* actual) {
     CreationControlStruct* ccs;
     cudaMalloc((void **)&ccs, sizeof(ccs));
     cudaMemset(ccs, 0, sizeof(ccs));
-    Runner::run(1, MIN(M, THREADS_CREATION), &global__create_data_gpu(plane, dev_css, ccs, actual));
+    
+    FigureCount* fc; 
+    cudaMalloc((void **)&fc, sizeof(FigureCount));
+    cudaMemcpy(fc, actual, sizeof(FigureCount), cudaMemcpyHostToDevice);
+    
+    Runner::run(1, MIN(M, THREADS_CREATION), &global__create_data_gpu(plane, dev_css, ccs, fc));
+    
+    cudaMemcpy(actual, fc, sizeof(FigureCount), cudaMemcpyDeviceToHost);
+    
+    cudaFree(fc);
     cudaFree(dev_css);
     cudaFree(circles);
+    cudaFree(ccs);
+    
     return 0;
 }

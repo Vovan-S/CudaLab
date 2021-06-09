@@ -2,13 +2,13 @@
 #include "../runner/Thread.h"
 #include "counter.h"
 
-class memory__count_figures : public AbstractMemory {
+class memory__count_figures_gpu : public AbstractMemory {
 public:
-	memory__count_figures() {}
+	memory__count_figures_gpu() {}
 	void* getPrt(size_t) { return nullptr; }
 };
 
-class global__count_figures : public Thread {
+class global__count_figures_gpu : public Thread {
 	PlanePart* plane;
 	CountStruct* count;
 	CountAlgConfig alg_cfg;
@@ -28,7 +28,7 @@ class global__count_figures : public Thread {
 	 AbstractMemory* _shared;
 
 public:
-	global__count_figures(PlanePart* plane, CountStruct* count, CountAlgConfig alg_cfg):
+	global__count_figures_gpu(PlanePart* plane, CountStruct* count, CountAlgConfig alg_cfg):
 		_shared(nullptr),
 		plane(plane),
 		count(count),
@@ -48,12 +48,12 @@ public:
 
 	bool usingShared() { return false; }
 
-	AbstractMemory* buildSharedMemory() { return new memory__count_figures(); }
+	AbstractMemory* buildSharedMemory() { return new memory__count_figures_gpu(); }
 
 	Thread* build(dim3 threadId, AbstractMemory* shared) {
-		global__count_figures* new_thread = new global__count_figures(plane,
-		                                                              count,
-		                                                              alg_cfg);
+		global__count_figures_gpu* new_thread = new global__count_figures_gpu(plane,
+		                                                                      count,
+		                                                                      alg_cfg);
 		new_thread->_shared = shared;
 		new_thread->m_threadId = threadId;
 		return new_thread;
@@ -98,7 +98,7 @@ enter:
                     flag = 1;
                     while (traverse(plane, &sq, alg_cfg.len << cfg.rang, &x, &y, color)) {
                         if (y == cfg.cy && x < cfg.stop) visited[x - cfg.start] = 1;
-                        if (!should_count(x, y, &cfg)) {
+                        if (!should_count(x, y, &cfg, alg_cfg.len)) {
                             flag = 0;
                             break;
                         }

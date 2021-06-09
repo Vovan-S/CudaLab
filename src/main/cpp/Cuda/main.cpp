@@ -1,28 +1,29 @@
-#include "Alg.h"
+#include "runner.h"
 
-#include <fstream>
+#include <iostream>
 
 int main() {
-    const int N = 3000;
-    const int M = 50;
-    plane_t* plane = new plane_t[N * N];
-    memset(plane, 0, N * N * sizeof(plane_t));
-    PlanePart ps;
-    ps.plane = plane;
-    ps.actualWidth = N;
-    ps.actualHeight = N;
-    Circle* circles = new Circle[M];
-    CreationSettingsStruct css;
-    css.circles = circles;
-    css.to_generate = M;
-    css.terminate_after = 10;
-    CreationControlStruct ccs;
-    memset(&ccs, 0, sizeof(ccs));
-    FigureCount fc;
-    memset(&fc, 0, sizeof(fc));
-    create_data_gpu<<<1, M>>>(&ps, &css, &ccs, &fc);
-    std::ofstream fout;
-    fout.open("file.bin", std::ios::binary | std::ios::out);
-    fout.write((char*)plane, N * N);
-    fout.close();
+    PlanePart* dev_plane;
+    PlanePart  hst_plane;
+    int N = 3000;
+    
+    cudaMalloc((void **)&(hst_plane.plane), sizeof(plane_t) * N * N);
+    cudaMemset(hst_plane.plane, 0, sizeof(plane_t) * N * N);
+    hst_plane.height = hst_plane.width = N;
+    hst_plane.actualHeight = hst_plane.actualWidth = N;
+    
+    cudaMalloc((void **)&dev_plane, sizeof(PlanePart));
+    cudaMemcpy(dev_plane, &hst_plane, sizeof(PlanePart), cudaMemcpyHostToDevice);
+    
+    TestRunInstance tests[1];
+    tests[0].plane = dev_plane;
+    tests[0].cfg = {256, 256};
+    tests[0].figures = {100, 100};
+    tests[0].regenerate = false;
+    
+    runPerfomanceTests(tests, 1, std::cout);
+    
+    cudaFree(hst_plane.plane);
+    cudaFree(dev_plane);
+    return 0;
 }

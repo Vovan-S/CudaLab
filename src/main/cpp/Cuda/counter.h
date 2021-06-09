@@ -1,6 +1,8 @@
 #pragma once
 #include "MainHeader.h"
 
+#define REDUCTION_THREADS 256
+
 typedef struct {
     size_t k;    // количество порядков зон
     size_t len;  // длина границы
@@ -34,7 +36,8 @@ __device__ int sq_pop(SmallQuery*, size_t* x, size_t* y);
 __device__ int sq_contains(SmallQuery*, size_t x, size_t y);
 
 __device__ int traverse(PlanePart*, SmallQuery*, size_t len, size_t* x, size_t* y, plane_t color);
-__device__ int should_count(size_t x, size_t y, LineConfig*);
+__device__ int should_count(size_t x, size_t y, LineConfig*, size_t len);
 
 
-__global__ int count_figures(PlanePart*, CountStruct*, CountAlgConfig);
+__global__ int count_figures_gpu(PlanePart*, CountStruct*, CountAlgConfig);
+__global__ int reduction(CountStruct*, FigureCount*, size_t elems);

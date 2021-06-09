@@ -21,8 +21,9 @@
   <ItemGroup>
        <ClInclude Include="processed\counter.h" />
     <ClInclude Include="processed\datacreation.h" />
-    <ClInclude Include="processed\global__count_figures.h" />
+    <ClInclude Include="processed\global__count_figures_gpu.h" />
     <ClInclude Include="processed\global__create_data_gpu.h" />
+    <ClInclude Include="processed\global__reduction.h" />
     <ClInclude Include="processed\MainHeader.h" />
     <ClInclude Include="processed\runner.h" />
     <ClInclude Include="processed\_all_classes.h" />
