@@ -4,7 +4,7 @@
 #include <ostream>
 
 #define MAX_THREADS 256
-#define MAX_BLOCKS (size_t) 1 << 48
+#define MAX_BLOCKS (size_t) 1 << 16
 
 #define TRY(x, y) if ((x) != 0) { log << "Error with " << y << std::endl; goto error; }
 #define ASSERT_PLANE(x) if ((x) == NULL || (x)->plane == NULL || (x)->plane[0] > 3) { log << "Plane assertion fails.\n"; goto error;}

@@ -42,7 +42,7 @@ error:
         t->successful = false;
     }
     log << "Ran " << n_tests << " tests.\nSuccessful:\t" << nSuccessful <<
-        "\nCrashed:\t" << nCrashed << "\nErrors:\t" << nErrors << std::endl;
+        "\nCrashed:\t" << nCrashed << "\nErrors:\t\t" << nErrors << std::endl;
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     return 0;

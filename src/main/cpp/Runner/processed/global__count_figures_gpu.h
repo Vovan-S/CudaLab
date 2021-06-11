@@ -68,7 +68,7 @@ default: return -1;
 enter:
 
     // func starts
-    tid = threadId.x + blockId.x * gridDim.x;
+    tid = threadId.x + blockId.x * blockDim.x;
     dim = gridDim.x * blockDim.x;
     
     while(tid < 2 * alg_cfg.k * (alg_cfg.k - 1)) {
@@ -90,7 +90,7 @@ enter:
             if (!visited[i]) {
                 color = pixel(plane, x, y);
                 if (TRIAG_COLOR != color && CIRCLE_COLOR != color) {
-                    color = pixel(plane, x, y - 1);
+                    color = pixel(plane, x1, y1);
                 }
                 if (TRIAG_COLOR == color || CIRCLE_COLOR == color) {
                     sq_push(&sq, x, y);

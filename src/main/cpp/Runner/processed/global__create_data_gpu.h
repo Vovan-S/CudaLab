@@ -117,15 +117,19 @@ sync3: __asm nop
 
     }
     generated = control->n_generated;
-    i = tid;
-    actual_count->circles = 0;
-    actual_count->triags = 0;
-    while (i < generated) {
-        if (CIRCLE_COLOR == settings->circles[i].type) {
-            actual_count->circles += 1;
-        } else {
-            actual_count->triags += 1;
+    if (tid == 0) {
+        actual_count->circles = 0;
+        actual_count->triags = 0;
+        for (i = 0; i < generated; i++) {
+            if (CIRCLE_COLOR == settings->circles[i].type) {
+                actual_count->circles += 1;
+            } else {
+                actual_count->triags += 1;
+            }
         }
+    }
+    i = tid;
+    while (i < generated) {
         drawFigure(plane, settings->circles + i, &seed);
         i += dim;
     }

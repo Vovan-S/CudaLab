@@ -19,7 +19,7 @@ int main() {
     tests[0].plane = dev_plane;
     tests[0].cfg = {256, 256};
     tests[0].figures = {100, 100};
-    tests[0].regenerate = false;
+    tests[0].regenerate = true;
     
     runPerfomanceTests(tests, 1, std::cout);
     

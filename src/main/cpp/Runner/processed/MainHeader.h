@@ -50,3 +50,4 @@ err_t create_data(PlanePart* plane, FigureCount desired, FigureCount* actual);
 
 
 err_t count_figures(PlanePart* plane, FigureCount* result, CudaConfig cfg);
+#include "_all_classes.h"

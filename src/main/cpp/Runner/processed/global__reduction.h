@@ -55,7 +55,7 @@ enter:
     // func starts
     if (blockId.x != 0) return 0;
     tid = threadId.x;
-    dim = gridDim.x;
+    dim = blockDim.x;
     
     for (i = 0; tid + i * dim < elems; i++) {
         count->circle[tid] += count->circle[tid + i * dim];
@@ -64,7 +64,7 @@ enter:
     
     i = dim / 2;
     while (i != 0) {
-        while (tid < i && tid + i < elems) {
+        if (tid < i && tid + i < elems) {
             count->circle[tid] += count->circle[tid + i];
             count->triag[tid] += count->triag[tid + i];
         }

@@ -3,6 +3,9 @@
 err_t count_figures(PlanePart* plane, FigureCount* result, CudaConfig cuda_cfg) {
     size_t N = cuda_cfg.nBlocks * cuda_cfg.nThreads;
     
+    PlanePart hst_plane; 
+    cudaMemcpy(&hst_plane, plane, sizeof(PlanePart), cudaMemcpyDeviceToHost);
+    
     CountStruct* dev_count;
     CountStruct hst_count;
     
@@ -14,9 +17,9 @@ err_t count_figures(PlanePart* plane, FigureCount* result, CudaConfig cuda_cfg) 
     
     CountAlgConfig cfg; 
     for (int i = sizeof(size_t) * 8 - 1; i >= 0; i--) {
-        if (N & (1 << i)) {
+        if (hst_plane.actualHeight & (1 << i)) {
             cfg.k = i - 5;
-            cfg.len = N / (1 << cfg.k);
+            cfg.len = hst_plane.actualHeight / (1 << cfg.k) + 1;
             break;
         }
     }
@@ -28,8 +31,8 @@ err_t count_figures(PlanePart* plane, FigureCount* result, CudaConfig cuda_cfg) 
     cudaMalloc((void **)&dev_fc, sizeof(FigureCount));
    
     reduction<<<1, cuda_cfg.nThreads>>>(dev_count, dev_fc, N);
-   
-    cudaMemcpy(result, dev_count, sizeof(FigureCount), cudaMemcpyDeviceToHost);
+    
+    cudaMemcpy(result, dev_fc, sizeof(FigureCount), cudaMemcpyDeviceToHost);
    
     cudaFree(dev_fc);
     cudaFree(hst_count.circle);
@@ -46,10 +49,11 @@ __device__ plane_t pixel(PlanePart* plane, size_t x, size_t y) {
 __device__ LineConfig map(size_t tid, CountAlgConfig* cfg) {
     LineConfig res;
     size_t k = cfg->k;
-    res.direction = tid / (k * (k - 1));
-    tid = tid % (k * (k - 1));
-    size_t slice = tid / k;
-    size_t part = tid % k;
+    size_t n = 1 << k;
+    res.direction = tid / (n * (n - 1));
+    tid = tid % (n * (n - 1));
+    size_t slice = tid / n;
+    size_t part = tid % n;
     size_t r = 0;
     while (!((slice + 1) & (1 << r))) r++;
     res.rang = r;
@@ -62,7 +66,7 @@ __device__ LineConfig map(size_t tid, CountAlgConfig* cfg) {
         res.cy = t;
     }
     res.start = cfg->len * part;
-    res.stop = res.start + part;
+    res.stop = res.start + cfg->len;
     return res;
 }
 
@@ -90,10 +94,9 @@ __device__ int sq_pop(SmallQuery* sq, size_t* x, size_t* y) {
 }
 
 __device__ int sq_contains(SmallQuery* sq, size_t x, size_t y) {
-    for (int i = 0; i < sq->size; i++) {
-        int j = (i + sq->start) / 10;
-        if (sq->x[j] == x) {
-            if (sq->y[j] == y) return 1;
+    for (int i = 0; i < 10; i++) {
+        if (sq->x[i] == x) {
+            if (sq->y[i] == y) return 1;
         }
     }
     return 0;
@@ -103,7 +106,9 @@ __device__ int sq_contains(SmallQuery* sq, size_t x, size_t y) {
 
 __device__ int traverse(PlanePart* plane, SmallQuery* sq, size_t len, size_t* cross_x, size_t* cross_y, plane_t color) {
     size_t x, y;
+    size_t watchdog = 0;
     while(!sq_pop(sq, &x, &y)) {
+        if (watchdog++ > 1000) return 0;
         insert_correct(x - 1, y - 1);
         insert_correct(x - 1, y);
         insert_correct(x - 1, y + 1);
@@ -122,24 +127,22 @@ __device__ int traverse(PlanePart* plane, SmallQuery* sq, size_t len, size_t* cr
 }
 
 __device__ int should_count(size_t x, size_t y, LineConfig* cfg, size_t len) {
-    size_t line_x, line_y;
-    if (cfg->direction == 0) {
-        line_y = cfg->cy;
-        line_x = cfg->stop;
-    } else {
-        line_x = cfg->cx;
-        line_y = cfg->stop;
-    }
-    int dx = x - line_x;
-    int dy = y - line_y;
-    // если это граница зоны, игнорируем
-    if (dx % (len << cfg->rang) == 0 || dy % (len << cfg->rang)) {
-        return 0;
-    }
-    if (dy > 0) return 0; // ниже? - игнорируем
-    if (dy < 0) return 1; // выше? - считаем
-    if (dx > 0) return 0; // правее? - игнорируем
-    return 1;
+     int dcx = x - cfg->cx;
+     int dcy = y - cfg->cy;
+     if ((dcx % ((int)len << cfg->rang) == 0 && dcx != 0) ||
+         (dcy % ((int)len << cfg->rang) == 0 && dcy != 0)) {
+         return 0;
+     }
+     if (cfg->direction == 1) {
+         if (y < cfg->stop) return 1;
+         else return 0;
+     }
+     else {
+         if (y < cfg->cy) return 1;
+         else if (y > cfg->cy) return 0;
+         else if (x < cfg->stop) return 1;
+         else return 0;
+     }
 }
 
 __global__ int count_figures_gpu(PlanePart* plane, CountStruct* count, CountAlgConfig alg_cfg) {
@@ -152,43 +155,52 @@ __global__ int count_figures_gpu(PlanePart* plane, CountStruct* count, CountAlgC
     char flag;
     
     // func starts
-    tid = threadId.x + blockId.x * gridDim.x;
+    tid = threadId.x + blockId.x * blockDim.x;
     dim = gridDim.x * blockDim.x;
     
-    while(tid < 2 * alg_cfg.k * (alg_cfg.k - 1)) {
+    count->triag[tid] = 0;
+    count->circle[tid] = 0;
+
+    
+    while(tid < 2 * (1 << alg_cfg.k) * ((1 << alg_cfg.k) - 1)) {
         cudaMemset(visited, 0, sizeof(visited));
         cfg = map(tid, &alg_cfg);
         for (i = 0; i < alg_cfg.len; i++) {
             if (0 == cfg.direction) { // горизонтальная граница
                 x = cfg.start + i;
                 y = cfg.cy;
-                x1 = x;
-                y1 = y - 1;
+                if (x >= plane->actualWidth) break;
             }
             else {
                 x = cfg.cx;
                 y = cfg.start + i;
-                x1 = x - 1;
-                y1 = y;
+                if (y >= plane->actualHeight) break;
+
             }
             if (!visited[i]) {
                 color = pixel(plane, x, y);
-                if (TRIAG_COLOR != color && CIRCLE_COLOR != color) {
-                    color = pixel(plane, x, y - 1);
-                }
                 if (TRIAG_COLOR == color || CIRCLE_COLOR == color) {
+                    sq_init(&sq);
                     sq_push(&sq, x, y);
                     visited[i] = 1;
                     flag = 1;
-                    while (traverse(plane, &sq, alg_cfg.len << cfg.rang, &x, &y, color)) {
-                        if (y == cfg.cy && x < cfg.stop) visited[x - cfg.start] = 1;
-                        if (!should_count(x, y, &cfg, alg_cfg.len)) {
+                    while (traverse(plane, &sq, alg_cfg.len << cfg.rang, &x1, &y1, color)) {
+						if (x1 == x && y1 == y) continue;
+						if (cfg.direction == 0 && y1 == y && x1 < cfg.stop) {
+							visited[x1 - cfg.start] = 1;
+							continue;
+						}
+						if (cfg.direction == 1 && x1 == x && y1 < cfg.stop) {
+							visited[y1 - cfg.start] = 1;
+							continue;
+						}
+                        if (!should_count(x1, y1, &cfg, alg_cfg.len)) {
                             flag = 0;
                             break;
                         }
                     }
                     if (flag) {
-                        if (TRIAG_COLOR == color) {
+						if (TRIAG_COLOR == color) {
                             count->triag[tid] += 1;
                         } else {
                             count->circle[tid] += 1;
@@ -196,7 +208,6 @@ __global__ int count_figures_gpu(PlanePart* plane, CountStruct* count, CountAlgC
                     }
                 }
             }
-            
         }
         tid += dim;
     }
@@ -210,16 +221,16 @@ __global__ int reduction(CountStruct* count, FigureCount* fc, size_t elems) {
     // func starts
     if (blockId.x != 0) return 0;
     tid = threadId.x;
-    dim = gridDim.x;
+    dim = blockDim.x;
     
-    for (i = 0; tid + i * dim < elems; i++) {
+    for (i = 1; tid + i * dim < elems; i++) {
         count->circle[tid] += count->circle[tid + i * dim];
         count->triag[tid] += count->triag[tid + i * dim];
     }
-    
+    __syncthreads();
     i = dim / 2;
     while (i != 0) {
-        while (tid < i && tid + i < elems) {
+        if (tid < i && tid + i < elems) {
             count->circle[tid] += count->circle[tid + i];
             count->triag[tid] += count->triag[tid + i];
         }
@@ -230,4 +241,3 @@ __global__ int reduction(CountStruct* count, FigureCount* fc, size_t elems) {
     fc->triags = count->triag[0];
     return 0;
 }
-

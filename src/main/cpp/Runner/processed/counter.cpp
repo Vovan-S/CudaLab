@@ -134,7 +134,8 @@ err_t count_figures(PlanePart* plane, FigureCount* result, CudaConfig cuda_cfg) 
     int dx = x - line_x;
     int dy = y - line_y;
     
-    if (dx % (len << cfg->rang) == 0 || dy % (len << cfg->rang)) {
+    if ((dx % (len << cfg->rang) == 0 && dx != 0) || 
+        (dy % (len << cfg->rang) == 0 && dy != 0)) {
         return 0;
     }
     if (dy > 0) return 0; 

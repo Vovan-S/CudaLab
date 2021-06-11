@@ -27,7 +27,7 @@
         if (randBool(rand_seed)) y = -y;
         for (int i = 0; i < 3; i++) {
             len_t x1 = -0.5 * x + 0.866025 * y;
-            len_t y1 = 0.866025 * x - 0.5 * y;
+            len_t y1 = -0.866025 * x - 0.5 * y;
             drawLine(plane, circle->x + circle->r * x, 
                             circle->y + circle->r * y,
                             circle->x + circle->r * x1, 
@@ -119,15 +119,15 @@ err_t create_data(PlanePart* plane, FigureCount desired, FigureCount* actual) {
     hst_css.circles = circles;
     hst_css.to_generate = M;
     hst_css.terminate_after = 10;
-    cudaMemcpy(&hst_css, dev_css, sizeof(CreationControlStruct), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_css, &hst_css, sizeof(CreationSettingsStruct), cudaMemcpyHostToDevice);
     
     CreationControlStruct* ccs;
-    cudaMalloc((void **)&ccs, sizeof(ccs));
-    cudaMemset(ccs, 0, sizeof(ccs));
+    cudaMalloc((void **)&ccs, sizeof(CreationControlStruct));
+    cudaMemset(ccs, 0, sizeof(CreationControlStruct));
     
     FigureCount* fc; 
     cudaMalloc((void **)&fc, sizeof(FigureCount));
-    cudaMemcpy(fc, actual, sizeof(FigureCount), cudaMemcpyHostToDevice);
+    cudaMemset(fc, 0, sizeof(FigureCount));
     
     Runner::run(1, MIN(M, THREADS_CREATION), &global__create_data_gpu(plane, dev_css, ccs, fc));
     
